@@ -1,0 +1,16 @@
+services:
+  docs:
+    image: cms_local_docs
+    container_name: cms_local_docs
+    build:
+      context: .
+      dockerfile: ./compose/local/docs/Dockerfile
+    env_file:
+      - ./.envs/.local/.django
+    volumes:
+      - ./docs:/docs:z
+      - ./config:/app/config:z
+      - ./cms:/app/cms:z
+    ports:
+      - '9000:9000'
+    command: /start-docs
