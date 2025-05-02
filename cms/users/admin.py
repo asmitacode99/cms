@@ -3,7 +3,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import admin as auth_admin
 from django.utils.translation import gettext_lazy as _
-
+from django.contrib.auth.models import Group
 from .forms import UserAdminChangeForm
 from .forms import UserAdminCreationForm
 from .models import User
@@ -36,5 +36,22 @@ class UserAdmin(auth_admin.UserAdmin):
         ),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
-    list_display = ["username", "name", "is_superuser"]
+    list_display = ["id", "username", "email", "is_superuser"]
     search_fields = ["name"]
+    ordering = ["id"]
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": ("username", "password1", "password2"),
+            },
+        ),
+    )
+
+# Unregister the default Group admin
+admin.site.unregister(Group)
+
+@admin.register(Group)
+class GroupAdmin(auth_admin.GroupAdmin):
+    list_display = ("id", "name")

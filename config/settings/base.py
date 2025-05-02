@@ -3,6 +3,9 @@
 
 
 from pathlib import Path
+from datetime import timedelta
+
+
 
 import environ
 
@@ -11,7 +14,8 @@ BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 APPS_DIR = BASE_DIR / "cms"
 env = environ.Env()
 
-READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
+READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=True)
+
 if READ_DOT_ENV_FILE:
     # OS environment variables take precedence over variables from .env
     env.read_env(str(BASE_DIR / ".env"))
@@ -29,11 +33,15 @@ TIME_ZONE = "Asia/Kathmandu"
 LANGUAGE_CODE = "en-us"
 # https://docs.djangoproject.com/en/dev/ref/settings/#languages
 # from django.utils.translation import gettext_lazy as _
-# LANGUAGES = [
-#     ('en', _('English')),
-#     ('fr-fr', _('French')),
-#     ('pt-br', _('Portuguese')),
-# ]
+LANGUAGES = (
+    ('en', ('English')),
+    ('ne', ('Nepali')),  # Nepali language code
+    # Add other languages here as needed
+)
+
+LANGUAGE_CODE = 'en'  # Set default to English
+
+USE_I18N = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#site-id
 SITE_ID = 1
 # https://docs.djangoproject.com/en/dev/ref/settings/#use-i18n
@@ -44,7 +52,7 @@ USE_TZ = True
 LOCALE_PATHS = [str(BASE_DIR / "locale")]
 
 # DATABASES
-# ------------------------------------------------------------------------------
+# --------------------------------- ---------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
 DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
@@ -61,6 +69,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 # APPS
 # ------------------------------------------------------------------------------
 DJANGO_APPS = [
+    "jazzmin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -78,10 +87,21 @@ THIRD_PARTY_APPS = [
     "allauth.account",
     "allauth.mfa",
     "allauth.socialaccount",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "django_ckeditor_5"
 ]
 
 LOCAL_APPS = [
     "cms.users",
+    # Your stuff: custom apps go here
+    "cms.core",
+    "cms.content",
+    "cms.blog",
+    'modeltranslation',
+
+   
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -118,12 +138,12 @@ PASSWORD_HASHERS = [
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [
-    {
+    { 
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"}, 
 ]
 
 # MIDDLEWARE
@@ -131,6 +151,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/dev/ref/settings/#middleware
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -215,9 +236,15 @@ X_FRAME_OPTIONS = "DENY"
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
 EMAIL_BACKEND = env(
-    "DJANGO_EMAIL_BACKEND",
+    "EMAIL_BACKEND",
     default="django.core.mail.backends.smtp.EmailBackend",
 )
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.office365.com")
+EMAIL_PORT = env("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-timeout
 EMAIL_TIMEOUT = 5
 
@@ -226,7 +253,7 @@ EMAIL_TIMEOUT = 5
 # Django Admin URL.
 ADMIN_URL = "admin/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#admins
-ADMINS = [("""Daniel Roy Greenfeld""", "daniel-roy-greenfeld@example.com")]
+ADMINS = [("""CMS""", EMAIL_HOST_USER)]
 # https://docs.djangoproject.com/en/dev/ref/settings/#managers
 MANAGERS = ADMINS
 # https://cookiecutter-django.readthedocs.io/en/latest/settings.html#other-environment-settings
@@ -250,23 +277,64 @@ LOGGING = {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": "verbose", 
         },
     },
     "root": {"level": "INFO", "handlers": ["console"]},
 }
 
-REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
-REDIS_SSL = REDIS_URL.startswith("rediss://")
+# REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
+# REDIS_SSL = REDIS_URL.startswith("rediss://")
+
+
+# Celery
+# ---------------------------------------------------------------------------------
+if USE_TZ:
+    # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-timezone
+    CELERY_TIMEZONE = TIME_ZONE
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-broker_url
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_backend
+CELERY_RESULT_BACKEND = 'django-db'
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-extended
+CELERY_RESULT_EXTENDED = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-always-retry
+# https://github.com/celery/celery/pull/6122
+CELERY_RESULT_BACKEND_ALWAYS_RETRY = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
+CELERY_RESULT_BACKEND_MAX_RETRIES = 10
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-accept_content
+CELERY_ACCEPT_CONTENT = ["json"]
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-task_serializer
+CELERY_TASK_SERIALIZER = "json"
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_serializer
+CELERY_RESULT_SERIALIZER = "json"
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-time-limit
+# TODO: set to whatever value is adequate in your circumstances
+CELERY_TASK_TIME_LIMIT = 5 * 60
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-soft-time-limit
+# TODO: set to whatever value is adequate in your circumstances
+CELERY_TASK_SOFT_TIME_LIMIT = 60
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#beat-scheduler
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-send-task-events
+CELERY_WORKER_SEND_TASK_EVENTS = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std-setting-task_send_sent_event
+CELERY_TASK_SEND_SENT_EVENT = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
 # django-allauth
 # ------------------------------------------------------------------------------
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 # https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_AUTHENTICATION_METHOD = "username"
+ACCOUNT_AUTHENTICATION_METHOD = "email"
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_EMAIL_REQUIRED = True
+# https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_USERNAME_REQUIRED = False
+# https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 # https://docs.allauth.org/en/latest/account/configuration.html
@@ -278,6 +346,98 @@ SOCIALACCOUNT_ADAPTER = "cms.users.adapters.SocialAccountAdapter"
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_FORMS = {"signup": "cms.users.forms.UserSocialSignupForm"}
 
+# django-rest-framework
+# -------------------------------------------------------------------------------
+# django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # JWT Authentication
+    ),
+    # 'DEFAULT_PERMISSION_CLASSES': (
+    #     'rest_framework.permissions.IsAuthenticated',  # Default permission to require authentication
+    # ),  
+}
+
+# CKEditor Settings     
+# ------------------------------------------------------------------------------
+
+CKEDITOR_5_CONFIGS = {
+    'default': {
+        'toolbar': ['heading', '|', 'bold', 'italic', 'link',
+                    'bulletedList', 'numberedList', 'blockQuote' ],
+
+    },
+    'extends': {
+        'blockToolbar': [
+            'paragraph', 'heading1', 'heading2', 'heading3',
+            '|',
+            'bulletedList', 'numberedList',
+            '|',
+            'blockQuote',
+        ],
+        'toolbar': ['heading', '|', 'outdent', 'indent', '|', 'bold', 'italic', 'link', 'underline', 'strikethrough',
+        'code','subscript', 'superscript', 'highlight', '|', 'codeBlock', 'sourceEditing', 'insertImage',
+                    'bulletedList', 'numberedList', 'todoList', '|',  'blockQuote', 'imageUpload', '|',
+                    'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', 'mediaEmbed', 'removeFormat',
+                    'insertTable',],
+        'heading' : {
+            'options': [
+                { 'model': 'paragraph', 'title': 'Paragraph', 'class': 'ck-heading_paragraph' },
+                { 'model': 'heading1', 'view': 'h1', 'title': 'Heading 1', 'class': 'ck-heading_heading1' },
+                { 'model': 'heading2', 'view': 'h2', 'title': 'Heading 2', 'class': 'ck-heading_heading2' },
+                { 'model': 'heading3', 'view': 'h3', 'title': 'Heading 3', 'class': 'ck-heading_heading3' }
+            ]
+        }
+    },
+    'list': {
+        'properties': {
+            'styles': 'true',
+            'startIndex': 'true',
+            'reversed': 'true',
+        }
+    }
+}
 
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+# JWT Settings
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # Increase to 15 minutes
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # Increase refresh token lifetime to 7 days
+    'ROTATE_REFRESH_TOKENS': True,  # Rotate refresh tokens
+    'BLACKLIST_AFTER_ROTATION': True,  # Blacklist old refresh tokens after rotation
+    'UPDATE_LAST_LOGIN': True,  # Update last login timestamp on refresh
+    'ALGORITHM': 'HS256',  # Use HS256 or RS256 (asymmetric keys)
+    'SIGNING_KEY': env("JWT_SECRET_KEY", default='your-default-secret-key'),  # Use environment variables
+    'VERIFYING_KEY': None,  # Set if using asymmetric encryption (RS256)
+    'AUDIENCE': 'your-audience',  # Optional: specify the audience for the JWT
+    'ISSUER': 'your-issuer',  # Optional: specify the issuer for the JWT
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+}
+
+ACCOUNT_ALLOW_REGISTRATION = True
+
+# CORS_ALLOWED_ORIGINS = [
+#     'http://127.0.0.1:3000', 
+# ]
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_METHODS = [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS'
+]  
+CORS_ALLOWED_HEADERS = [
+    'Accept',
+    'Content-Type',
+    'Authorization',
+    'enctype'
+]
+

@@ -2,10 +2,12 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include
 from django.urls import path
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
+
 
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
@@ -19,11 +21,27 @@ urlpatterns = [
     # User management
     path("users/", include("cms.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
-    # Your stuff: custom urls includes go here
-    # ...
+    
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
+    # Your stuff: custom urls includes go here
+    # ...
+    path("ckeditor5/", include('django_ckeditor_5.urls')),
 ]
+if settings.DEBUG:
+    # Static file serving when using Gunicorn + Uvicorn for local web socket development
+    urlpatterns += staticfiles_urlpatterns()
+
+# API URLS
+urlpatterns += [
+    # API base url
+    path("api/", include("config.api_router")),  
+    path("api/v1/content/", include("cms.content.urls"), name="api-contents"),
+    path("api/v1/blog/", include("cms.blog.urls"), name="api-blogs"),
+
+
+]
+
 
 
 if settings.DEBUG:
